@@ -353,9 +353,8 @@ impl PTouch {
     /// Print output must be shifted and in the correct bit-order for this function.
     /// 
     /// TODO: this is too low level of an interface, should be replaced with higher-level apis
-    pub fn print_raw(&mut self, data: Vec<[u8; 16]>, info: &PrintInfo) -> Result<(), Error> {
+    pub fn print_raw(&mut self, data: Vec<[u8; 16]>, info: &PrintInfo, margin: u16, copies: usize) -> Result<(), Error> {
         // TODO: should we check info (and size) match status here?
-
 
         // Print sequence from raster guide Section 2.1
         // 1. Set to raster mode
@@ -377,55 +376,63 @@ impl PTouch {
         // 6. Set advanced mode settings
         self.set_advanced_mode(AdvancedMode::NO_CHAIN)?;
 
-        // 7. Specify margin amount
-        // TODO: based on what?
-        self.set_margin(0)?;
-
         // 8. Set compression mode
         // TODO: fix broken TIFF mode and add compression flag
         self.set_compression_mode(CompressionMode::None)?;
 
-        // Send raster data
-        for line in data {
-            // TODO: re-add when TIFF mode issues resolved
-            //let l = tiff::compress(&line);
-
-            self.raster_transfer(&line)?;
-        }
-
-        // Execute print operation
-        self.print_and_feed()?;
-
-
-        // Poll on print completion
-        let mut i = 0;
-        loop {
-            if let Ok(s) = self.read_status(self.timeout) {
-                if !s.error1.is_empty() || !s.error2.is_empty() {
-                    debug!("Print error: {:?} {:?}", s.error1, s.error2);
-                    return Err(Error::PTouch(s.error1, s.error2));
-                }
-    
-                if s.status_type == DeviceStatus::PhaseChange {
-                    debug!("Started printing");
-                }
-
-                if s.status_type == DeviceStatus::Completed {
-                    debug!("Print completed");
-                    break;
-                }
+        for n in 1..=copies {
+            // 7. Specify margin amount
+            // TODO: based on what?
+            if n == 1 {
+                self.set_margin(margin)?;
+            } else {
+                self.set_margin(margin + 16)?;
             }
 
-            if i > 10 {
-                debug!("Print timeout");
-                return Err(Error::Timeout);
+            // Send raster data
+            for line in &data {
+                // TODO: re-add when TIFF mode issues resolved
+                //let l = tiff::compress(&line);
+
+                self.raster_transfer(line)?;
             }
 
-            i += 1;
+            // Execute print operation
+            if n == copies {
+                self.print_and_feed()?;
+            } else {
+                self.print()?;
+            }
 
-            std::thread::sleep(Duration::from_secs(1));
+            // Poll on print completion
+            let mut i = 0;
+            loop {
+                if let Ok(s) = self.read_status(self.timeout) {
+                    if !s.error1.is_empty() || !s.error2.is_empty() {
+                        debug!("Print error: {:?} {:?}", s.error1, s.error2);
+                        return Err(Error::PTouch(s.error1, s.error2));
+                    }
+
+                    if s.status_type == DeviceStatus::PhaseChange {
+                        debug!("Started printing");
+                    }
+
+                    if s.status_type == DeviceStatus::Completed {
+                        debug!("Print completed");
+                        break;
+                    }
+                }
+
+                if i > 10 {
+                    debug!("Print timeout");
+                    return Err(Error::Timeout);
+                }
+
+                i += 1;
+
+                std::thread::sleep(Duration::from_secs(1));
+            }
         }
-
 
         Ok(())
     }

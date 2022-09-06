@@ -8,6 +8,7 @@ use embedded_graphics::{
     prelude::*,
     pixelcolor::BinaryColor,
 };
+use log::debug;
 
 use crate::Error;
 
@@ -74,7 +75,7 @@ impl Display {
     pub fn raster(&self, margins: (usize, usize, usize)) -> Result<Vec<[u8; 16]>, anyhow::Error> {
         let s = self.size();
 
-        println!("Raster display size: {:?} output area: {:?}", s, margins);
+        debug!("Raster display size: {:?} output area: {:?}", s, margins);
         if s.height != margins.1 as u32 {
             return Err(anyhow::anyhow!("Raster display and output size differ ({:?}, {:?})", s, margins));
         }

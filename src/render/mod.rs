@@ -102,6 +102,7 @@ impl Render {
                 Op::Text { text, opts } => self.render_text(x, text, opts)?,
                 Op::Pad{ count } => self.pad(x, *count)?,
                 Op::Qr{ code } => self.render_qrcode(x, code)?,
+                Op::QrWithOpts { code, version, eclevel } => self.render_qrcode_with_opts(x, code, *version, *eclevel)?,
                 Op::Barcode{ code, opts } => self.render_barcode(x, code, opts)?,
                 Op::Image{ file, opts } => self.render_image(x, file, opts)?,
             }
@@ -268,9 +269,23 @@ impl Render {
         Ok(columns)
     }
 
+    fn get_qr(value: &str, opts: Option<(qrcode::Version, qrcode::EcLevel)>) -> qrcode::QrResult<QrCode> {
+        if let Some((version, eclevel)) = opts {
+            QrCode::with_version(value, version, eclevel)
+        } else {
+            QrCode::new(value)
+        }
+    }
+
+    fn render_qrcode_with_opts(&mut self, x_start: usize, value: &str, version: qrcode::Version, eclevel: qrcode::EcLevel) -> Result<usize, Error> {
+        self.render_qrcode_impl(x_start, Self::get_qr(value, Some((version, eclevel)))?)
+    }
+
     fn render_qrcode(&mut self, x_start: usize, value: &str) -> Result<usize, Error> {
-        // Generate QR
-        let qr = QrCode::new(value).unwrap();
+        self.render_qrcode_impl(x_start, Self::get_qr(value, None)?)
+    }
+
+    fn render_qrcode_impl(&mut self, x_start: usize, qr: QrCode) -> Result<usize, Error> {
         let img = qr.render()
             .dark_color(image::Rgb([0, 0, 0]))
             .light_color(image::Rgb([255, 255, 255]))

@@ -113,6 +113,9 @@ pub enum Error {
 
     #[error("PTouch Error ({:?} {:?})", 0, 1)]
     PTouch(Error1, Error2),
+
+    #[error("QR code error: {:?}", 0)]
+    QrCode(qrcode::types::QrError),
 }
 
 impl From<std::io::Error> for Error {
@@ -130,6 +133,12 @@ impl From<rusb::Error> for Error {
 impl From<ImageError> for Error {
     fn from(e: ImageError) -> Self {
         Error::Image(e)
+    }
+}
+
+impl From<qrcode::types::QrError> for Error {
+    fn from(e: qrcode::types::QrError) -> Self {
+        Error::QrCode(e)
     }
 }
 

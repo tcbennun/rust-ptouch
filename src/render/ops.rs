@@ -36,6 +36,11 @@ pub enum Op {
     Qr{
         code: String
     },
+    QrWithOpts {
+        code: String,
+        version: qrcode::Version,
+        eclevel: qrcode::EcLevel
+    },
     Barcode{
         code: String,
         #[cfg_attr(feature = "serde", serde(flatten, default))]
@@ -72,6 +77,10 @@ impl Op {
 
     pub fn qr(code: &str) -> Self {
         Self::Qr{ code: code.to_string() }
+    }
+
+    pub fn qr_with_opts(code: &str, version: qrcode::Version, eclevel: qrcode::EcLevel) -> Self {
+        Self::QrWithOpts { code: code.to_string(), version, eclevel }
     }
 
     pub fn barcode(code: &str) -> Self {

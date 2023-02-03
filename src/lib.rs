@@ -358,6 +358,90 @@ impl PTouch {
         Ok(s)
     }
 
+    pub fn print_init(&mut self, info: &PrintInfo) -> Result<(), Error> {
+        // Print sequence from raster guide Section 2.1
+        // 1. Set to raster mode
+        self.switch_mode(Mode::Raster)?;
+
+        // 2. Enable status notification
+        self.set_status_notify(true)?;
+
+        // 3. Set print information (media type etc.)
+        self.set_print_info(info)?;
+
+        // 4. Set various mode settings
+        self.set_various_mode(VariousMode::AUTO_CUT)?;
+
+        // 5. Specify page number in "cut each * labels"
+        // Note this is not supported on the PT-P710BT
+        // TODO: add this for other printers
+
+        // 6. Set advanced mode settings
+        self.set_advanced_mode(AdvancedMode::NO_CHAIN)?;
+
+        // 8. Set compression mode
+        // TODO: fix broken TIFF mode and add compression flag
+        self.set_compression_mode(CompressionMode::None)?;
+
+        Ok(())
+    }
+
+    pub fn print_one_page(&mut self, data: &Vec<[u8; 16]>, margin: u16, first_page: bool, last_page: bool) -> Result<(), Error> {
+        // 7. Specify margin amount
+        // TODO: based on what?
+        if first_page {
+            self.set_margin(margin)?;
+        } else {
+            self.set_margin(margin + 16)?;
+        }
+
+        // Send raster data
+        for line in data {
+            // TODO: re-add when TIFF mode issues resolved
+            //let l = tiff::compress(&line);
+
+            self.raster_transfer(line)?;
+        }
+
+        // Execute print operation
+        if last_page {
+            self.print_and_feed()?;
+        } else {
+            self.print()?;
+        }
+
+        // Poll on print completion
+        let mut i = 0;
+        loop {
+            if let Ok(s) = self.read_status(self.timeout) {
+                if !s.error1.is_empty() || !s.error2.is_empty() {
+                    debug!("Print error: {:?} {:?}", s.error1, s.error2);
+                    return Err(Error::PTouch(s.error1, s.error2));
+                }
+
+                if s.status_type == DeviceStatus::PhaseChange {
+                    debug!("Started printing");
+                }
+
+                if s.status_type == DeviceStatus::Completed {
+                    debug!("Print completed");
+                    break;
+                }
+            }
+
+            if i > 10 {
+                debug!("Print timeout");
+                return Err(Error::Timeout);
+            }
+
+            i += 1;
+
+            std::thread::sleep(Duration::from_secs(1));
+        }
+
+        Ok(())
+    }
+
     /// Setup the printer and print using raw raster data.
     /// Print output must be shifted and in the correct bit-order for this function.
     /// 
